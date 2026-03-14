@@ -980,6 +980,34 @@ export class InputHandler extends Disposable implements IInputHandler {
    * @vt: #Y CSI CUF   "Cursor Forward"    "CSI Ps C"  "Move cursor `Ps` times forward (default=1)."
    */
   public cursorForward(params: IParams): boolean {
+
+    // If the cursor is already at the end of the line and we're telling it to move forward, first
+    // wrap around to the next line. This isn't the normal behavior but it is the expected behavior
+    // for older DOS programs.
+
+    const cols = this._bufferService.cols;
+    const wraparoundMode = this._coreService.decPrivateModes.wraparound;
+
+    if (this._activeBuffer.x >= cols) {
+      // autowrap - DECAWM
+      // automatically wraps to the beginning of the next line
+      if (wraparoundMode) {
+        this._activeBuffer.x = 0;
+        this._activeBuffer.y++;
+        if (this._activeBuffer.y === this._activeBuffer.scrollBottom + 1) {
+          this._activeBuffer.y--;
+          this._bufferService.scroll(this._eraseAttrData(), true);
+        } else {
+          if (this._activeBuffer.y >= this._bufferService.rows) {
+            this._activeBuffer.y = this._bufferService.rows - 1;
+          }
+          // The line already exists (eg. the initial viewport), mark it as a
+          // wrapped line
+          this._activeBuffer.lines.get(this._activeBuffer.ybase + this._activeBuffer.y)!.isWrapped = true;
+        }
+      }
+    }
+
     this._moveCursor(params.params[0] || 1, 0);
     return true;
   }
